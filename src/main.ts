@@ -1,28 +1,45 @@
-import { createApp } from 'vue';
-import { createPinia } from 'pinia';
-import * as ElementPlusIconsVue from '@element-plus/icons-vue';
-import App from './App.vue';
-import router from './router';
-import { usePermissStore } from './store/permiss';
-import 'element-plus/dist/index.css';
-import './assets/css/icon.css';
+import { createApp } from 'vue'
+import App from './App.vue'
+import router from './router'
+import './router/guard'
+import '@/styles/index.scss'
+import 'normalize.css/normalize.css'
+import { createPinia } from 'pinia'
+import { i18n } from './locales'
+import VueClickAway from 'vue3-click-away'
+import lazyPlugin from 'vue3-lazy'
+import { registerSvgIcon } from '@/icons'
+import { registerObSkeleton } from '@/components/LoadingSkeleton'
+import 'prismjs/themes/prism.css'
+import 'prismjs'
+import 'element-plus/theme-chalk/index.css'
+import { components, plugins } from './plugins/element-plus'
+import piniaPluginPersistence from 'pinia-plugin-persistedstate'
+import infiniteScroll from 'vue3-infinite-scroll-better'
+import v3ImgPreview from 'v3-img-preview'
+import 'mavon-editor/dist/css/index.css'
+import api from './api/api'
 
-const app = createApp(App);
-app.use(createPinia());
-app.use(router);
-
-// 注册elementplus图标
-for (const [key, component] of Object.entries(ElementPlusIconsVue)) {
-    app.component(key, component);
-}
-// 自定义权限指令
-const permiss = usePermissStore();
-app.directive('permiss', {
-    mounted(el, binding) {
-        if (!permiss.key.includes(String(binding.value))) {
-            el['hidden'] = true;
-        }
-    },
-});
-
-app.mount('#app');
+const pinia = createPinia()
+pinia.use(piniaPluginPersistence)
+export const app = createApp(App)
+  .use(router)
+  .use(pinia)
+  .use(i18n)
+  .use(VueClickAway)
+  .use(infiniteScroll)
+  .use(v3ImgPreview, {})
+  .use(lazyPlugin, {
+    loading: require('@/assets/default-cover.jpg'),
+    error: require('@/assets/default-cover.jpg')
+  })
+components.forEach((component) => {
+  app.component(component.name, component)
+})
+plugins.forEach((plugin) => {
+  app.use(plugin)
+})
+registerSvgIcon(app)
+registerObSkeleton(app)
+app.mount('#app')
+api.report()
