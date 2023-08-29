@@ -71,6 +71,8 @@ import { Dropdown, DropdownMenu, DropdownItem } from '@/components/Dropdown'
 import { isExternal } from '@/utils/validate'
 import config from '@/config/config'
 import api from '@/api/api'
+import {ElMessage} from "element-plus";
+import {useAuthStore} from "@/stores/auth";
 
 export default defineComponent({
   name: 'Navigation',
@@ -78,7 +80,15 @@ export default defineComponent({
   setup() {
     const { t, te } = useI18n()
     const router = useRouter()
+    const  authStore = useAuthStore();
     const pushPage = (path: string): void => {
+      ElMessage.error("change")
+      if (authStore.haveAuth == true){
+        authStore.setAuth(false)
+      }else {
+        authStore.setAuth(true)
+      }
+      console.log(authStore.haveAuth)
       if (!path) return
       if (isExternal(path)) {
         window.location.href = path

@@ -1,16 +1,15 @@
 import axios, {type AxiosRequestConfig} from "axios";
-import {ElMessage, ElMessageBox} from 'element-plus'
+import {ElMessage} from 'element-plus'
 import {useAuthStore} from "@/stores/auth";
 
 axios.defaults.baseURL = "http://localhost:9010";
 axios.defaults.timeout = 20 * 1000;
 axios.defaults.maxBodyLength = 5 * 1024 * 1024;
 axios.defaults.withCredentials = true
-const authStore = useAuthStore();
 
 axios.interceptors.request.use(
   (config: AxiosRequestConfig | any) => {
-
+    const authStore = useAuthStore();
     if (authStore.hasToken){
       config.params = {
         ...config.params,
@@ -35,29 +34,35 @@ axios.interceptors.request.use(
 // 添加响应拦截器
 axios.interceptors.response.use(
   (response) => {
-    const res = response.data
+    const authStore = useAuthStore();
+    const res : Response = response.data
+    // 后台错误通过，状态码返回
     if (response.status !== 200) {
-      ElMessage({
-        message: res.message,
-        type: 'error',
-        duration: 3 * 1000
-      })
-      return Promise.reject('error')
-    }
-    if (res.code != 200){
       // 401:未登录;
-      if (res.code === 401) {
-        ElMessageBox.confirm('你已被登出，可以取消继续留在该页面，或者重新登录', '确定登出', {
-          confirmButtonText: '重新登录',
-          cancelButtonText: '取消',
-          type: 'warning'
-        }).then(() => {
-          //TODO 跳转到登陆页面
-
-
+      if (response.status === 401) {
+        ElMessage({
+          message: '你已被登出，体验更多内容，请重新登录',
+          type: 'error',
+          duration: 3 * 1000
+        })
+        authStore.setAuth(false)
+      }else {
+        ElMessage({
+          message: '后台服务异常，请联系系统管理员：' + response.status,
+          type: 'error',
+          duration: 3 * 1000
         })
       }
       return Promise.reject('error')
+    }
+    // 业务异常
+    if (res == null || res.code != 200){
+      ElMessage({
+        message: res == null ? "后端响应为空" : res.msg,
+        type: 'error',
+        duration: 3 * 1000
+      })
+      console.log('业务异常状态码:'+ (res == null ? "后端响应为空" : res.code))
     }
     return response.data;
   },
@@ -73,85 +78,55 @@ axios.interceptors.response.use(
 );
 
 interface Http {
-  get<T>(url: string, params?: unknown): Promise<T>;
+  get<T>(url: string, params?: unknown): Promise<Response>;
 
-  post<T>(url: string, params?: unknown): Promise<T>;
+  post<T>(url: string, params?: unknown): Promise<Response>;
 
-  upload<T>(url: string, params: unknown): Promise<T>;
+  upload<T>(url: string, params: unknown): Promise<Response>;
 
-  put<T>(url: string, params: unknown): Promise<T>;
+  put<T>(url: string, params: unknown): Promise<Response>;
 
-  delete<T>(url: string, params: unknown): Promise<T>;
+  delete<T>(url: string, params: unknown): Promise<Response>;
 
   download(url: string): void;
 }
 
+export interface Response{
+  /**
+   * 状态码
+   */
+  code:number;
+
+  /**
+   * 信息
+   */
+  msg:string;
+
+  /**
+   * 数据
+   */
+  data:unknown;
+}
+
 const http: Http = {
-  get(url, params) {
-    return new Promise((resolve, reject) => {
-      axios
-        .get(url, {params})
-        .then((res) => {
-          resolve(res.data);
-        })
-        .catch((err) => {
-          reject(err.data);
-        });
-    });
+  get(url, params){
+    return axios.get(url, {params})
   },
 
   post(url, params) {
-    return new Promise((resolve, reject) => {
-      axios
-        .post(url, JSON.stringify(params))
-        .then((res) => {
-          resolve(res.data);
-        })
-        .catch((err) => {
-          reject(err.data);
-        });
-    });
+    return axios.post(url, params);
   },
 
   put(url, params) {
-    return new Promise((resolve, reject) => {
-      axios
-        .put(url, JSON.stringify(params))
-        .then((res) => {
-          resolve(res.data);
-        })
-        .catch((err) => {
-          reject(err.data);
-        });
-    });
+    return axios.put(url, JSON.stringify(params));
   },
 
   delete(url, params) {
-    return new Promise((resolve, reject) => {
-      axios
-        .delete(url, {params})
-        .then((res) => {
-          resolve(res.data);
-        })
-        .catch((err) => {
-          reject(err.data);
-        });
-    });
+    return axios.delete(url, {params})
   },
 
   upload(url, file) {
-    return new Promise((resolve, reject) => {
-      axios
-        .post(url, file, {
-          headers: {"Content-Type": "multipart/form-data"},
-        })
-        .then((res) => {
-          resolve(res.data);
-        })
-        .catch((err) => {
-          reject(err.data);
-        });
-    });
+    return axios.post(url, file, {headers: {"Content-Type": "multipart/form-data"}});
   },
 
   download(url) {

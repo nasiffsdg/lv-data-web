@@ -41,7 +41,7 @@
   <el-dialog v-model="loginDialogVisible" width="30%" :fullscreen="isMobile">
     <el-form @keyup.enter.native="login">
       <el-form-item model="userInfo" class="mt-5">
-        <el-input v-model="loginInfo.username" placeholder="邮箱" />
+        <el-input v-model="loginInfo.username" placeholder="用户名或邮箱" />
       </el-form-item>
       <el-form-item model="userInfo" type="password" class="mt-8">
         <el-input v-model="loginInfo.password" type="password" show-password placeholder="密码" />
@@ -61,7 +61,10 @@
   <el-dialog v-model="registerDialogVisible" width="30%" :fullscreen="isMobile">
     <el-form>
       <el-form-item model="userInfo" class="mt-5">
-        <el-input v-model="loginInfo.username" placeholder="邮箱" />
+        <el-input v-model="loginInfo.username" placeholder="用户名" />
+      </el-form-item>
+      <el-form-item model="userInfo" class="mt-5">
+        <el-input v-model="loginInfo.e_mail" placeholder="邮箱" />
       </el-form-item>
       <el-form-item model="userInfo" class="mt-8">
         <el-input v-model="loginInfo.code" placeholder="验证码">
@@ -116,7 +119,7 @@
 </template>
 
 <script lang="ts">
-import { computed, defineComponent, toRef, toRefs, reactive, getCurrentInstance, nextTick } from 'vue'
+import {computed, defineComponent, toRef, toRefs, reactive, getCurrentInstance, nextTick, onMounted} from 'vue'
 import { Dropdown, DropdownMenu, DropdownItem } from '@/components/Dropdown'
 import { useAppStore } from '@/stores/app'
 import { useCommonStore } from '@/stores/common'
@@ -129,10 +132,14 @@ import { useSearchStore } from '@/stores/search'
 import config from '@/config/config'
 import { useI18n } from 'vue-i18n'
 import emitter from '@/utils/mitt'
-
+import {useAuthStore} from "@/stores/auth";
+import SvgIcon from "@/components/SvgIcon/index.vue";
+import {apiGetVerifyCode, apiUserLogin, apiUserRegister} from "@/api/user";
+import {ElMessage} from "element-plus";
 export default defineComponent({
   name: 'Controls',
   components: {
+    SvgIcon,
     Dropdown,
     DropdownMenu,
     DropdownItem,
@@ -145,14 +152,17 @@ export default defineComponent({
     const appStore = useAppStore()
     const commonStore = useCommonStore()
     const userStore = useUserStore()
+    const authStore = useAuthStore()
     const searchStore = useSearchStore()
     const route = useRoute()
     const router = useRouter()
     const loginInfo = reactive({
+      e_mail: '' as any,
       username: '' as any,
       password: '' as any,
       code: '' as any
     })
+
     const reactiveDate = reactive({
       loginDialogVisible: false,
       registerDialogVisible: false,
@@ -161,6 +171,10 @@ export default defineComponent({
       articlePassword: '',
       articleId: ''
     })
+    authStore.$subscribe((mutation, state)=>{
+      reactiveDate.loginDialogVisible = !state.haveAuth
+    })
+
     emitter.on('changeArticlePasswordDialogVisible', (articleId: any) => {
       reactiveDate.articlePasswordDialogVisible = true
       reactiveDate.articlePassword = ''
@@ -181,28 +195,37 @@ export default defineComponent({
         })
         return
       }
-      let params = new URLSearchParams()
-      params.append('username', loginInfo.username)
-      params.append('password', loginInfo.password)
-      api.login(params).then(({ data }) => {
-        if (data.flag) {
-          userStore.userInfo = data.data
-          sessionStorage.setItem('token', data.data.token)
-          userStore.token = data.data.token
-          proxy.$notify({
-            title: 'Success',
-            message: '登录成功',
-            type: 'success'
-          })
-          reactiveDate.loginDialogVisible = false
-        } else {
-          proxy.$notify({
-            title: 'Error',
-            message: data.message,
-            type: 'error'
-          })
+      apiUserLogin(loginInfo.username, loginInfo.password).then((data)=>{
+        if (data.code == 200){
+          let us = data.data.authUser;
+          userStore.userInfo = data.data;
+          authStore.setAuth(true)
+          authStore.setLogin(true)
+          authStore.setUserInfo(data)
         }
-      })
+        userStore.userInfo = data.data;
+        console.log(data);
+      }
+      )
+      // api.login(params).then(({ data }) => {
+      //   if (data.flag) {
+      //     userStore.userInfo = data.data
+      //     sessionStorage.setItem('token', data.data.token)
+      //     userStore.token = data.data.token
+      //     proxy.$notify({
+      //       title: 'Success',
+      //       message: '登录成功',
+      //       type: 'success'
+      //     })
+      //     reactiveDate.loginDialogVisible = false
+      //   } else {
+      //     proxy.$notify({
+      //       title: 'Error',
+      //       message: data.message,
+      //       type: 'error'
+      //     })
+      //   }
+      // })
     }
     const logout = () => {
       api.logout().then(({ data }) => {
@@ -247,43 +270,37 @@ export default defineComponent({
       reactiveDate.forgetPasswordDialogVisible = true
     }
     const sendCode = () => {
-      api.sendValidationCode(loginInfo.username).then(({ data }) => {
-        if (data.flag) {
-          proxy.$notify({
-            title: 'Success',
-            message: '验证码已发送',
-            type: 'success'
-          })
-        } else {
-          proxy.$notify({
-            title: 'Error',
-            message: data.message,
-            type: 'error'
+      apiGetVerifyCode(loginInfo.e_mail).then(data=>{
+        console.log(data)
+        if (data.code == 200){
+          ElMessage({
+            message: '验证码发送成功',
+            type: 'success',
+            duration: 3 * 1000
           })
         }
       })
     }
     const register = () => {
-      let params = {
-        code: loginInfo.code,
-        username: loginInfo.username,
-        password: loginInfo.password
+
+      if (loginInfo.username.trim().length == 0 || loginInfo.password.trim().length == 0 || loginInfo.e_mail.trim().length == 0) {
+        ElMessage({
+          message: '账号或者密码不能为空',
+          type: 'info',
+          duration: 3 * 1000
+        })
+        return
       }
-      api.register(params).then(({ data }) => {
-        if (data.flag) {
-          proxy.$notify({
-            title: 'Success',
-            message: '注册成功',
-            type: 'success'
+
+      apiUserRegister(loginInfo.username, loginInfo.e_mail, loginInfo.password, loginInfo.code).then((data)=>{
+        if (data.code == 200){
+          ElMessage({
+            message: '注册成功，请登录',
+            type: 'success',
+            duration: 3 * 1000
           })
           reactiveDate.registerDialogVisible = false
           reactiveDate.loginDialogVisible = true
-        } else {
-          proxy.$notify({
-            title: 'Error',
-            message: data.message,
-            type: 'error'
-          })
         }
       })
     }

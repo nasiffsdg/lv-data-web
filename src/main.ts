@@ -23,16 +23,16 @@ import api from './api/api'
 const pinia = createPinia()
 pinia.use(piniaPluginPersistence)
 export const app = createApp(App)
-  .use(router)
-  .use(pinia)
-  .use(i18n)
-  .use(VueClickAway)
-  .use(infiniteScroll)
-  .use(v3ImgPreview, {})
-  .use(lazyPlugin, {
-    loading: require('@/assets/default-cover.jpg'),
-    error: require('@/assets/default-cover.jpg')
-  })
+    .use(pinia)
+    .use(router)
+    .use(i18n)
+    .use(VueClickAway)
+    .use(infiniteScroll)
+    .use(v3ImgPreview, {})
+    .use(lazyPlugin, {
+        loading: require('@/assets/default-cover.jpg'),
+        error: require('@/assets/default-cover.jpg')
+    })
 components.forEach((component) => {
   app.component(component.name, component)
 })

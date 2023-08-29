@@ -1,6 +1,7 @@
 import axios from 'axios'
 import { app } from '@/main'
 
+
 axios.interceptors.request.use((config: any) => {
   config.headers['Authorization'] = 'Bearer ' + sessionStorage.getItem('token')
   return config
